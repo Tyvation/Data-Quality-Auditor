@@ -6,15 +6,20 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
   },
   "dependencies": {
     "next": "16.0.3",
     "react": "19.2.0",
-    "react-dom": "19.2.0"
+    "react-dom": "19.2.0",
+    "recharts": "^3.4.1"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2",
     "@tailwindcss/postcss": "^4",
+    "@tauri-apps/cli": "^2.9.4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
