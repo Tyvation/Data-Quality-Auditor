@@ -2,13 +2,14 @@ export type DataType = "string" | "integer" | "float" | "boolean" | "datetime" |
 
 export interface SchemaField {
   name: string;
-  dtype: DataType;
+  dtype: "string" | "integer" | "float" | "boolean" | "datetime" | "category";
   nullable: boolean;
-  description?: string;
   min?: number;
   max?: number;
   allowed_values?: string[];
+  description?: string;
   regex?: string;
+  isCustom?: boolean; // UI state for form handling
 }
 
 export interface RuleDefinition {
@@ -46,6 +47,7 @@ export interface MissingValueStat {
   column: string;
   missing_count: number;
   missing_pct: number;
+  sample_rows: Record<string, string>[];
 }
 
 export interface RuleResult {

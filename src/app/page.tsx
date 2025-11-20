@@ -23,6 +23,7 @@ export default function Home() {
   const [isRunning, setIsRunning] = useState(false);
   const [message, setMessage] = useState<string>("");
   const [loadingTemplate, setLoadingTemplate] = useState(false);
+  const [availableColumns, setAvailableColumns] = useState<string[]>([]);
 
   const fetchTemplate = useCallback(async () => {
     setLoadingTemplate(true);
@@ -49,6 +50,30 @@ export default function Home() {
     fetchTemplate();
     refreshReports();
   }, [fetchTemplate, refreshReports]);
+
+  useEffect(() => {
+    if (!file) {
+      setAvailableColumns([]);
+      return;
+    }
+    const fetchColumns = async () => {
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        const response = await fetch(apiUrl("/audit/schema"), {
+          method: "POST",
+          body: formData,
+        });
+        if (response.ok) {
+          const cols = await response.json();
+          setAvailableColumns(cols);
+        }
+      } catch (error) {
+        console.error("Failed to fetch columns", error);
+      }
+    };
+    fetchColumns();
+  }, [file]);
 
   const runAudit = async () => {
     if (!file) {
@@ -170,7 +195,7 @@ export default function Home() {
           </div>
         </section>
 
-        <AuditConfigForm config={config} setConfig={setConfig} />
+        <AuditConfigForm config={config} setConfig={setConfig} availableColumns={availableColumns} />
 
         <AuditReportView report={report} />
 

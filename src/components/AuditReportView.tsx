@@ -20,23 +20,78 @@ interface AuditReportViewProps {
 }
 
 export default function AuditReportView({ report }: AuditReportViewProps) {
-    const issueRows = useMemo(() => {
+    const allIssues = useMemo(() => {
         if (!report) return [];
-        return report.rule_results.flatMap((rule) => {
-            if (rule.passed || !rule.sample_rows.length) {
-                return [];
+        const issues: Array<{
+            rowId: string;
+            value: string;
+            errorType: string;
+            ruleOrColumn: string;
+            severity: "info" | "warning" | "error";
+        }> = [];
+
+        // 1. Rule Failures
+        report.rule_results.forEach((rule) => {
+            if (!rule.passed && rule.sample_rows) {
+                rule.sample_rows.forEach((sample) => {
+                    const enrichedSample = sample as Record<string, string> & { __line__?: string };
+                    issues.push({
+                        rowId: enrichedSample.__line__ ?? "n/a",
+                        value: JSON.stringify(sample), // Or specific column if possible, but rule might involve multiple
+                        errorType: "Rule Failed",
+                        ruleOrColumn: rule.name,
+                        severity: rule.severity,
+                    });
+                });
             }
-            return rule.sample_rows.map((sample) => {
+        });
+
+        // 2. Missing Values
+        report.missing_values.forEach((mv) => {
+            if (mv.missing_count > 0 && mv.sample_rows) {
+                mv.sample_rows.forEach((sample) => {
+                    const enrichedSample = sample as Record<string, string> & { __line__?: string };
+                    issues.push({
+                        rowId: enrichedSample.__line__ ?? "n/a",
+                        value: "NULL / Empty",
+                        errorType: "Missing Value",
+                        ruleOrColumn: mv.column,
+                        severity: mv.missing_pct > 10 ? "error" : "warning",
+                    });
+                });
+            }
+        });
+
+        // 3. Primary Key Issues
+        if (report.primary_key_result) {
+            const pkCols = report.primary_key_result.columns.join(", ");
+            report.primary_key_result.sample_rows.forEach((sample) => {
                 const enrichedSample = sample as Record<string, string> & { __line__?: string };
-                return {
-                    rule: rule.name,
-                    severity: rule.severity,
-                    rowId: enrichedSample.__line__ ?? enrichedSample.__row__ ?? "n/a",
-                    row: enrichedSample,
-                };
+                // Determine if it's a duplicate or null based on the data? 
+                // The backend returns mixed samples. We can infer or just label generic "PK Issue"
+                // For simplicity, let's check if PK columns are null
+                const isNull = report.primary_key_result?.columns.some(col => !sample[col]);
+
+                issues.push({
+                    rowId: enrichedSample.__line__ ?? "n/a",
+                    value: JSON.stringify(sample),
+                    errorType: isNull ? "PK Null" : "PK Duplicate",
+                    ruleOrColumn: pkCols,
+                    severity: "error",
+                });
             });
+        }
+
+        return issues.sort((a, b) => {
+            // Try to sort by row ID if it's a number
+            const rowA = parseInt(a.rowId);
+            const rowB = parseInt(b.rowId);
+            if (!isNaN(rowA) && !isNaN(rowB)) return rowA - rowB;
+            return a.rowId.localeCompare(b.rowId);
         });
     }, [report]);
+
+
 
     const issueIndicators = useMemo(() => {
         if (!report) return [];
@@ -330,29 +385,42 @@ export default function AuditReportView({ report }: AuditReportViewProps) {
                         </div>
                     </div>
 
-                    {issueRows.length > 0 && (
+                    {allIssues.length > 0 && (
                         <div>
-                            <h3 className="mb-2 text-lg font-semibold text-white">Row-level issue samples</h3>
+                            <h3 className="mb-2 text-lg font-semibold text-white">Detailed issue log</h3>
                             <div className="overflow-x-auto rounded-2xl border border-white/10 bg-black/20">
                                 <table className="min-w-full text-left text-sm">
                                     <thead className="bg-white/5 text-xs uppercase text-[#9BA0A8]">
                                         <tr>
-                                            <th className="px-3 py-2">Line</th>
-                                            <th className="px-3 py-2">Issue</th>
+                                            <th className="px-3 py-2">Row</th>
+                                            <th className="px-3 py-2">Value</th>
+                                            <th className="px-3 py-2">Error Type</th>
+                                            <th className="px-3 py-2">Rule / Column</th>
                                             <th className="px-3 py-2">Severity</th>
-                                            <th className="px-3 py-2">Sample data</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {issueRows.map((item, idx) => (
-                                            <tr key={`${item.rule}-${idx}`} className="border-b border-white/5">
-                                                <td className="px-3 py-2">{item.rowId}</td>
-                                                <td className="px-3 py-2">{item.rule}</td>
-                                                <td className="px-3 py-2 capitalize">{item.severity}</td>
+                                        {allIssues.map((item, idx) => (
+                                            <tr key={`${item.errorType}-${item.rowId}-${idx}`} className="border-b border-white/5 hover:bg-white/5">
+                                                <td className="px-3 py-2 font-mono text-xs text-[#9BA0A8]">{item.rowId}</td>
                                                 <td className="px-3 py-2">
-                                                    <pre className="max-h-32 overflow-auto text-xs">
-                                                        {JSON.stringify(item.row, null, 2)}
-                                                    </pre>
+                                                    <div className="max-w-xs truncate text-xs text-white/80" title={item.value}>
+                                                        {item.value}
+                                                    </div>
+                                                </td>
+                                                <td className="px-3 py-2">{item.errorType}</td>
+                                                <td className="px-3 py-2">{item.ruleOrColumn}</td>
+                                                <td className="px-3 py-2">
+                                                    <span
+                                                        className={`rounded px-2 py-1 text-xs capitalize ${item.severity === "error"
+                                                            ? "bg-rose-500/20 text-rose-200"
+                                                            : item.severity === "warning"
+                                                                ? "bg-amber-500/20 text-amber-200"
+                                                                : "bg-blue-500/20 text-blue-200"
+                                                            }`}
+                                                    >
+                                                        {item.severity}
+                                                    </span>
                                                 </td>
                                             </tr>
                                         ))}

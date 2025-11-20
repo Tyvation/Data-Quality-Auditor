@@ -9,9 +9,10 @@ const panelClass =
 interface AuditConfigFormProps {
   config: AuditConfig;
   setConfig: Dispatch<SetStateAction<AuditConfig>>;
+  availableColumns?: string[];
 }
 
-export default function AuditConfigForm({ config, setConfig }: AuditConfigFormProps) {
+export default function AuditConfigForm({ config, setConfig, availableColumns = [] }: AuditConfigFormProps) {
   const updateSchemaField = (index: number, field: Partial<SchemaField>) => {
     setConfig((prev) => {
       const nextSchema = [...prev.schema];
@@ -91,11 +92,49 @@ export default function AuditConfigForm({ config, setConfig }: AuditConfigFormPr
             {config.schema.map((item, index) => (
               <div key={index} className="rounded-2xl border border-white/10 bg-[#0D0F12] p-4 text-sm shadow-inner shadow-black/40">
                 <div className="flex gap-2">
-                  <input
-                    value={item.name}
-                    onChange={(event) => updateSchemaField(index, { name: event.target.value })}
-                    className="flex-1 rounded-xl border border-white/10 bg-transparent px-3 py-2"
-                  />
+                  {availableColumns.length > 0 && !item.isCustom ? (
+                    <select
+                      value={availableColumns.includes(item.name) ? item.name : "custom"}
+                      onChange={(event) => {
+                        const val = event.target.value;
+                        if (val === "custom") {
+                          updateSchemaField(index, { isCustom: true, name: "" });
+                        } else {
+                          updateSchemaField(index, { name: val });
+                        }
+                      }}
+                      className="flex-1 rounded-xl border border-white/10 bg-[#11141c] px-3 py-2"
+                    >
+                      <option value="" disabled>Select column</option>
+                      {availableColumns.map((col) => (
+                        <option key={col} value={col}>
+                          {col}
+                        </option>
+                      ))}
+                      <option value="custom" className="font-semibold text-[#00FFAA]">
+                        + Enter custom name...
+                      </option>
+                    </select>
+                  ) : (
+                    <div className="flex flex-1 gap-2">
+                      <input
+                        value={item.name}
+                        onChange={(event) => updateSchemaField(index, { name: event.target.value })}
+                        className="flex-1 rounded-xl border border-white/10 bg-transparent px-3 py-2"
+                        placeholder="Column name"
+                        autoFocus={item.isCustom}
+                      />
+                      {availableColumns.length > 0 && (
+                        <button
+                          onClick={() => updateSchemaField(index, { isCustom: false, name: "" })}
+                          className="text-xs text-[#00FFAA] hover:underline"
+                          title="Switch to dropdown"
+                        >
+                          List
+                        </button>
+                      )}
+                    </div>
+                  )}
                   <select
                     value={item.dtype}
                     onChange={(event) => updateSchemaField(index, { dtype: event.target.value as SchemaField["dtype"] })}
