@@ -57,6 +57,13 @@ export interface RuleResult {
   description?: string | null;
 }
 
+export interface PrimaryKeyResult {
+  columns: string[];
+  duplicate_count: number;
+  null_count: number;
+  sample_rows: Record<string, string>[];
+}
+
 export interface AuditReport {
   id: string;
   summary: AuditSummary;
@@ -64,6 +71,7 @@ export interface AuditReport {
   missing_values: MissingValueStat[];
   rule_results: RuleResult[];
   sample_rows: Record<string, string>[];
+  primary_key_result?: PrimaryKeyResult | null;
   config: AuditConfig;
   source_file: string;
 }
